@@ -1,0 +1,35 @@
+{
+  "family": "hireforge-agent",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "__EXECUTION_ROLE_ARN__",
+  "taskRoleArn": "__TASK_ROLE_ARN__",
+  "containerDefinitions": [
+    {
+      "name": "agent",
+      "image": "__AWS_ACCOUNT_ID__.dkr.ecr.__AWS_REGION__.amazonaws.com/hireforge-agent:__IMAGE_TAG__",
+      "essential": true,
+      "environment": [
+        { "name": "AWS_REGION", "value": "__AWS_REGION__" },
+        { "name": "S3_BUCKET", "value": "__S3_BUCKET__" },
+        { "name": "SQS_QUEUE_URL", "value": "__SQS_QUEUE_URL__" },
+        { "name": "GROQ_MODEL", "value": "__GROQ_MODEL__" },
+        { "name": "MONGODB_DB", "value": "resumeforge" }
+      ],
+      "secrets": [
+        { "name": "MONGODB_URI", "valueFrom": "__MONGODB_URI_SECRET_ARN__" },
+        { "name": "GROQ_API_KEY", "valueFrom": "__GROQ_API_KEY_SECRET_ARN__" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/hireforge/agent",
+          "awslogs-region": "__AWS_REGION__",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

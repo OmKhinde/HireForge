@@ -1,0 +1,50 @@
+resumeforge/
+├── frontend/                  # React + Vite
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── UploadForm.jsx
+│   │   │   ├── ResultsPanel.jsx
+│   │   │   ├── KeywordHeatmap.jsx
+│   │   │   ├── ProgressFeed.jsx
+│   │   │   └── SuggestionCards.jsx
+│   │   ├── pages/
+│   │   │   ├── Home.jsx
+│   │   │   └── Dashboard.jsx
+│   │   ├── hooks/
+│   │   │   └── useWebSocket.js
+│   │   └── api/
+│   │       └── client.js
+│   └── Dockerfile
+│
+├── backend/                   # Node.js + Express
+│   ├── src/
+│   │   ├── routes/
+│   │   │   ├── upload.js
+│   │   │   ├── jobs.js
+│   │   │   └── auth.js
+│   │   ├── services/
+│   │   │   ├── s3.js
+│   │   │   ├── sqs.js
+│   │   │   ├── websocket.js
+│   │   │   └── pdf.js
+│   │   ├── models/
+│   │   │   ├── Job.js
+│   │   │   └── User.js
+│   │   └── app.js
+│   └── Dockerfile
+│
+├── agent/                     # Python — LangGraph
+│   ├── graph/
+│   │   ├── state.py
+│   │   ├── nodes.py           # all 5 node functions
+│   │   ├── edges.py           # conditional routing
+│   │   └── graph.py           # StateGraph assembly
+│   ├── tools/
+│   │   └── ats_scorer.py      # keyword + format scoring logic
+│   ├── worker.py              # SQS poll loop
+│   └── Dockerfile
+│
+├── docker-compose.yml         # local dev: all 3 services + mongo + redis
+├── infra/
+│   └── aws-setup.md           # exact CLI commands for each AWS resource
+└── .env.example

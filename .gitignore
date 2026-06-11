@@ -1,0 +1,47 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.*
+**/.env
+**/.env.*
+**/frontend.env
+**/*.local
+!.env.example
+!**/.env.example
+!**/frontend.env.example
+
+# Node / frontend artifacts
+**/node_modules/
+**/dist/
+**/dist-ssr/
+coverage/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local build / runtime files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# AWS CLI installer bundle
+aws/dist/
+aws/install
+awscliv2.zip

@@ -1,0 +1,49 @@
+{
+  "family": "hireforge-backend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "__EXECUTION_ROLE_ARN__",
+  "taskRoleArn": "__TASK_ROLE_ARN__",
+  "containerDefinitions": [
+    {
+      "name": "backend",
+      "image": "__AWS_ACCOUNT_ID__.dkr.ecr.__AWS_REGION__.amazonaws.com/hireforge-backend:__IMAGE_TAG__",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3001,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "AWS_REGION", "value": "__AWS_REGION__" },
+        { "name": "S3_BUCKET", "value": "__S3_BUCKET__" },
+        { "name": "SQS_QUEUE_URL", "value": "__SQS_QUEUE_URL__" },
+        { "name": "FRONTEND_URL", "value": "__FRONTEND_URL__" },
+        { "name": "PORT", "value": "3001" },
+        { "name": "MONGODB_DB", "value": "resumeforge" }
+      ],
+      "secrets": [
+        { "name": "MONGODB_URI", "valueFrom": "__MONGODB_URI_SECRET_ARN__" },
+        { "name": "JWT_SECRET", "valueFrom": "__JWT_SECRET_SECRET_ARN__" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 20
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/hireforge/backend",
+          "awslogs-region": "__AWS_REGION__",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

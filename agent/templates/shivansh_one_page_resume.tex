@@ -1,0 +1,84 @@
+\documentclass[letterpaper,10pt]{article}
+
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{geometry}
+\usepackage{xcolor}
+
+\geometry{top=0.42in, bottom=0.42in, left=0.58in, right=0.58in}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\setlength{\footskip}{4pt}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+\titleformat{\section}{
+  \vspace{2pt}\bfseries\raggedright\normalsize\uppercase
+}{}{0em}{}[\titlerule\vspace{2pt}]
+
+\newcommand{\resumeItem}[1]{%
+  \item\small{#1}\vspace{0pt}%
+}
+
+\newcommand{\resumeSubheading}[4]{%
+  \vspace{1pt}
+  \begin{tabular*}{\textwidth}[t]{l@{\extracolsep{\fill}}r}
+    \textbf{#1} & \small #2 \\
+    \textit{\small #3} & \textit{\small #4}
+  \end{tabular*}
+  \vspace{1pt}
+}
+
+\newcommand{\projectHeading}[3]{%
+  \vspace{1pt}
+  \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+    \textbf{\href{#1}{#2}} & \small\textit{#3}
+  \end{tabular*}
+  \vspace{0pt}
+}
+
+\newcommand{\projectStack}[1]{%
+  \vspace{-2pt}
+  \small\textit{#1}
+  \vspace{1pt}
+}
+
+\setlist[itemize,1]{leftmargin=0.18in, label=\textbullet, topsep=1pt, itemsep=0.5pt, parsep=0pt}
+
+\begin{document}
+
+%---------- HEADER ----------
+\begin{center}
+  {\LARGE\bfseries\scshape <<NAME>>}\\[4pt]
+  \small
+  <<HEADER_LINE>>
+\end{center}
+
+\vspace{1pt}
+
+%---------- EDUCATION ----------
+<<EDUCATION_BLOCK>>
+
+%---------- TECHNICAL SKILLS ----------
+<<SKILLS_BLOCK>>
+
+%---------- PROJECTS ----------
+<<PROJECTS_BLOCK>>
+
+%---------- ACHIEVEMENTS ----------
+<<ACHIEVEMENTS_BLOCK>>
+
+\end{document}
