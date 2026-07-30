@@ -66,7 +66,7 @@ LATEX_TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "shivansh_
 llm = ChatGroq(
     model=os.environ["GROQ_MODEL"],
     temperature=0.2,
-    max_tokens=4096,
+    max_tokens=8192,
 )
 
 
@@ -126,13 +126,51 @@ def _compact(items, limit):
     return [item for item in items if item][:limit]
 
 
+def _document_to_parsed_resume(document: dict) -> dict:
+    """Convert the build_resume_document output into the format compute_ats_score expects."""
+    skills = []
+    for group in document.get("skill_groups", []):
+        skills.extend(group.get("items", []))
+
+    experience = document.get("experience", [])
+
+    education = [
+        {
+            "degree": edu.get("degree", ""),
+            "institution": edu.get("institution", ""),
+            "year": edu.get("date", ""),
+        }
+        for edu in document.get("education", [])
+    ]
+
+    # Use achievements as a summary proxy since the document has no summary field
+    summary = " ".join(
+        item.get("text", "") for item in document.get("achievements", [])
+    )
+
+    return {
+        "skills": skills,
+        "experience": experience,
+        "education": education,
+        "summary": summary,
+    }
+
+
 def _load_latex_template() -> str:
     return LATEX_TEMPLATE_PATH.read_text(encoding="utf-8")
 
 
 def build_resume_document(resume_text: str, source_resume_text: str, template_kind: str) -> dict:
+    # Determine content volume to decide one-page vs two-page
+    word_count = len(source_resume_text.split())
+    page_instruction = (
+        "Optimize for a clean two-page layout."
+        if word_count > 600
+        else "Optimize for one page only."
+    )
+
     prompt = f"""
-Convert the resume below into structured JSON for a one-page LaTeX resume.
+Convert the resume below into structured JSON for a LaTeX resume.
 Return ONLY valid JSON. Do not include markdown fences.
 
 TEMPLATE FAMILY: {template_kind}
@@ -150,6 +188,14 @@ JSON FORMAT:
       "date": "Aug 2023 -- May 2027",
       "degree": "Degree",
       "detail": "CGPA or equivalent"
+    }}
+  ],
+  "experience": [
+    {{
+      "title": "Job Title",
+      "company": "Company Name",
+      "date": "Jun 2023 -- Aug 2024",
+      "bullets": ["bullet 1", "bullet 2"]
     }}
   ],
   "skill_groups": [
@@ -177,8 +223,11 @@ JSON FORMAT:
 RULES:
 - Preserve truth from the resume. Never fabricate missing facts.
 - If a field is unknown, use an empty string or empty list.
-- Optimize for one page only.
-- Keep at most 1 education item, 6 skill groups, 3 projects, 2 bullets per project, and 4 achievements.
+- {page_instruction}
+- Include ALL work experience roles from the source resume. Do not drop any employer.
+- Keep at most 3 education items, 3 experience entries with up to 4 bullets each,
+  6 skill groups, 5 projects with up to 4 bullets each, and 6 achievements.
+- If the source resume has NO work experience at all, return an empty "experience" array.
 - Bullets must be concise, ATS-strong, and quantifiable when the source supports that.
 - Reflect the target JD keywords naturally, but never invent experience.
 
@@ -186,7 +235,7 @@ REWRITTEN RESUME:
 {resume_text}
 
 ORIGINAL SOURCE RESUME:
-{source_resume_text[:5000]}
+{source_resume_text[:15000]}
 """
 
     response = llm.invoke([HumanMessage(content=prompt)])
@@ -194,12 +243,15 @@ ORIGINAL SOURCE RESUME:
     try:
         document = _parse_json(response.content)
         if isinstance(document, dict):
-            document["education"] = _compact(document.get("education", []), 1)
+            document["education"]    = _compact(document.get("education", []), 3)
+            document["experience"]   = _compact(document.get("experience", []), 3)
+            for exp in document["experience"]:
+                exp["bullets"] = _compact(exp.get("bullets", []), 4)
             document["skill_groups"] = _compact(document.get("skill_groups", []), 6)
-            document["projects"] = _compact(document.get("projects", []), 3)
+            document["projects"]     = _compact(document.get("projects", []), 5)
             for project in document["projects"]:
-                project["bullets"] = _compact(project.get("bullets", []), 2)
-            document["achievements"] = _compact(document.get("achievements", []), 4)
+                project["bullets"] = _compact(project.get("bullets", []), 4)
+            document["achievements"] = _compact(document.get("achievements", []), 6)
             return document
     except Exception:
         pass
@@ -211,6 +263,7 @@ ORIGINAL SOURCE RESUME:
         "linkedin": "",
         "github": "",
         "education": [],
+        "experience": [],
         "skill_groups": [],
         "projects": [],
         "achievements": [],
@@ -302,11 +355,31 @@ def build_resume_latex(document: dict) -> str:
 {achievement_items}
 \end{{itemize}}
 """
+    # ── Experience section ─────────────────────────────────────────────────────
+    experience_chunks = []
+    for exp in document.get("experience", []):
+        bullets = "\n".join(
+            rf"  \resumeItem{{{_latex_escape(bullet)}}}"
+            for bullet in exp.get("bullets", [])
+            if bullet
+        )
+        experience_chunks.append(rf"""\resumeSubheading
+  {{{_latex_escape(exp.get("company", ""))}}}{{{_latex_escape(exp.get("date", ""))}}}
+  {{{_latex_escape(exp.get("title", ""))}}}{{{{}}}}\begin{{itemize}}
+{bullets}
+\end{{itemize}}
+""")
+
+    experience_block = ""
+    if experience_chunks:
+        experience_block = "\\section{Experience}\n\n" + "\n".join(experience_chunks)
+
     return (
         template
         .replace("<<NAME>>", name)
         .replace("<<HEADER_LINE>>", header_line or r"\mbox{}")
         .replace("<<EDUCATION_BLOCK>>", education_block or "% No education data")
+        .replace("<<EXPERIENCE_BLOCK>>", experience_block or "% No experience data")
         .replace("<<SKILLS_BLOCK>>", skills_block or "% No skills data")
         .replace("<<PROJECTS_BLOCK>>", projects_block or "% No projects data")
         .replace("<<ACHIEVEMENTS_BLOCK>>", achievements_block or "% No achievements data")
@@ -423,6 +496,21 @@ def process_job(job_id: str):
         )
         result["rendered_resume_text"] = json.dumps(resume_document)
         result["progress"] = result.get("progress", []) + ["Generated final resume PDF from the LaTeX template."]
+
+        # ── Post-PDF scoring (Bug #4 fix): score the ACTUAL document that
+        #    became the PDF, not the fabricated hybrid from the graph.  This
+        #    ensures the number shown to the user matches the real file.
+        from tools.ats_scorer import compute_ats_score
+        scorer_resume = _document_to_parsed_resume(resume_document)
+        pdf_score, pdf_keyword_map, pdf_gaps = compute_ats_score(
+            scorer_resume, result.get("parsed_jd", {})
+        )
+        result["final_score"] = pdf_score
+        result["keyword_map"] = pdf_keyword_map
+        result["gaps"] = pdf_gaps
+        result["progress"] = result["progress"] + [
+            f"Re-scored from actual PDF content: {pdf_score}/100."
+        ]
     except Exception as error:
         result["progress"] = result.get("progress", []) + [f"LaTeX PDF generation failed: {error}"]
 

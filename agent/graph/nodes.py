@@ -9,7 +9,7 @@ from tools.ats_scorer import compute_ats_score
 llm = ChatGroq(
     model=os.environ["GROQ_MODEL"],
     temperature=0.3,
-    max_tokens=4096,
+    max_tokens=8192,
 )
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ PARSED RESUME SECTIONS:
 {json.dumps(state["parsed_resume"], indent=2)}
 
 FULL ORIGINAL RESUME TEXT:
-{state["resume_text"][:5000]}
+{state["resume_text"][:15000]}
 
 OUTPUT: Write the full rewritten resume as clean plain text, ready to turn into a final resume PDF.
 Start directly with the resume content. No preamble, no explanation.
@@ -238,32 +238,48 @@ def verify_score(state: AgentState) -> AgentState:
             "progress":    _log({"progress": progress}, "No rewrite done. Final score equals original."),
         }
 
-    # Extract skills from the rewritten resume to re-score
-    prompt = f"""
-Extract all technical skills, tools, frameworks, and technologies 
-mentioned in this resume text.
-Return ONLY valid JSON, no markdown fences:
-{{"skills": ["skill1", "skill2", ...]}}
+    # Full structured re-extraction from the rewritten resume.
+    # The old code fabricated a hybrid (old experience + 500-char summary slice)
+    # which had no relation to the actual rewritten content.
+    extract_prompt = f"""
+Extract structured information from this rewritten resume text.
+Return ONLY valid JSON, no explanation, no markdown fences.
 
-RESUME:
+Output format:
+{{
+  "summary": "professional summary text or empty string",
+  "skills": ["skill1", "skill2"],
+  "experience": [
+    {{
+      "title": "Job Title",
+      "company": "Company Name",
+      "duration": "Jan 2022 - Present",
+      "bullets": ["bullet 1", "bullet 2"]
+    }}
+  ],
+  "education": [
+    {{
+      "degree": "Degree",
+      "institution": "University Name",
+      "year": "2021"
+    }}
+  ]
+}}
+
+RESUME TEXT:
 {state["rewritten_resume"]}
 """
 
-    response = llm.invoke([HumanMessage(content=prompt)])
+    response = llm.invoke([HumanMessage(content=extract_prompt)])
 
     try:
-        extracted  = _parse_json(response.content)
-        new_skills = extracted.get("skills", [])
+        parsed_rewritten = _parse_json(response.content)
+        if not isinstance(parsed_rewritten, dict):
+            parsed_rewritten = state["parsed_resume"]
     except json.JSONDecodeError:
-        new_skills = state["parsed_resume"].get("skills", [])
+        parsed_rewritten = state["parsed_resume"]
 
-    updated_resume = {
-        **state["parsed_resume"],
-        "skills":  new_skills,
-        "summary": state["rewritten_resume"][:500],   # treat first 500 chars as new summary for scoring
-    }
-
-    final_score, new_keyword_map, new_gaps = compute_ats_score(updated_resume, state["parsed_jd"])
+    final_score, new_keyword_map, new_gaps = compute_ats_score(parsed_rewritten, state["parsed_jd"])
 
     msg = (
         f"Final ATS score: {final_score}/100 "

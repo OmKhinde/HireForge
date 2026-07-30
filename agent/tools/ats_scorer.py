@@ -1,5 +1,57 @@
 import re
 
+# ── Canonical aliases for common tech terms ────────────────────────────────────
+# Each group lists alternate names for the same skill. When searching for any
+# member, all variants in the group are tried.
+_ALIAS_GROUPS = [
+    ["javascript", "js"],
+    ["typescript", "ts"],
+    ["python", "python3"],
+    ["node.js", "nodejs", "node"],
+    ["react", "react.js", "reactjs"],
+    ["next.js", "nextjs"],
+    ["vue.js", "vuejs", "vue"],
+    ["angular", "angularjs"],
+    ["express", "express.js", "expressjs"],
+    ["postgresql", "postgres", "psql"],
+    ["mongodb", "mongo"],
+    ["kubernetes", "k8s"],
+    ["docker", "docker-compose", "docker compose"],
+    ["amazon web services", "aws"],
+    ["google cloud platform", "gcp"],
+    ["microsoft azure", "azure"],
+    ["ci/cd", "ci cd", "cicd"],
+    ["machine learning", "ml"],
+    ["artificial intelligence", "ai"],
+    ["natural language processing", "nlp"],
+    ["graphql", "graph ql"],
+    ["rest api", "rest apis", "restful"],
+    ["terraform", "tf"],
+    ["redis", "redis cache"],
+    ["rabbitmq", "rabbit mq"],
+    ["apache kafka", "kafka"],
+    [".net", "dotnet", "dot net"],
+    ["c++", "cpp"],
+    ["c#", "csharp", "c sharp"],
+]
+
+# Build a lookup: lowercase skill name → set of all aliases (including itself)
+_ALIAS_MAP: dict[str, set[str]] = {}
+for group in _ALIAS_GROUPS:
+    normalized = set(s.lower() for s in group)
+    for name in normalized:
+        _ALIAS_MAP[name] = normalized
+
+
+def _keyword_found(kw: str, resume_blob: str) -> bool:
+    """Check if keyword or any of its known aliases appear in the resume text."""
+    candidates = _ALIAS_MAP.get(kw, {kw})
+    for variant in candidates:
+        if re.search(r'(?<!\w)' + re.escape(variant) + r'(?!\w)', resume_blob):
+            return True
+    return False
+
+
 def compute_ats_score(parsed_resume: dict, parsed_jd: dict) -> tuple[int, dict, list]:
     """
     Deterministic ATS scoring. No LLM needed here — keeps costs at zero.
@@ -37,14 +89,13 @@ def compute_ats_score(parsed_resume: dict, parsed_jd: dict) -> tuple[int, dict, 
     matched_nice     = 0
 
     for kw in required:
-        # Use lookarounds instead of \b so terms like C++, .NET, CI/CD match correctly
-        found = bool(re.search(r'(?<!\w)' + re.escape(kw) + r'(?!\w)', resume_blob))
+        found = _keyword_found(kw, resume_blob)
         keyword_map[kw] = "present" if found else "missing"
         if found:
             matched_required += 1
 
     for kw in nice:
-        found = bool(re.search(r'(?<!\w)' + re.escape(kw) + r'(?!\w)', resume_blob))
+        found = _keyword_found(kw, resume_blob)
         keyword_map[kw] = "present" if found else "missing"
         if found:
             matched_nice += 1
