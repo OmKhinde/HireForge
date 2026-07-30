@@ -11,6 +11,7 @@ router.post('/register', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
     const user  = await User.create({ email, password });
     res.status(201).json({ token: makeToken(user), email: user.email });
   } catch (err) {

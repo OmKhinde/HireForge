@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import jwt from 'jsonwebtoken';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import mongoose from 'mongoose';
@@ -35,21 +36,43 @@ console.log(`Backend Mongo database: ${DB_NAME}`);
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 const wss     = new WebSocketServer({ server: httpServer });
-const clients = new Map();   // jobId → ws
+const clients = new Map();   // jobId → Set<ws>
 
 wss.on('connection', (ws, req) => {
-  const jobId = new URL(req.url, 'http://x').searchParams.get('jobId');
+  const url   = new URL(req.url, 'http://x');
+  const jobId = url.searchParams.get('jobId');
+  const token = url.searchParams.get('token');
+
+  // Verify JWT before accepting the connection (prevents IDOR)
+  try {
+    jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    ws.close(4001, 'Unauthorized');
+    return;
+  }
+
   if (jobId) {
-    clients.set(jobId, ws);
+    if (!clients.has(jobId)) clients.set(jobId, new Set());
+    clients.get(jobId).add(ws);
     console.log(`WS connected: ${jobId}`);
   }
-  ws.on('close', () => clients.delete(jobId));
+  ws.on('close', () => {
+    const sockets = clients.get(jobId);
+    if (sockets) {
+      sockets.delete(ws);
+      if (sockets.size === 0) clients.delete(jobId);
+    }
+  });
   ws.on('error', (e) => console.error('WS error', e));
 });
 
 export const pushProgress = (jobId, payload) => {
-  const ws = clients.get(jobId);
-  if (ws?.readyState === 1) ws.send(JSON.stringify(payload));
+  const sockets = clients.get(jobId);
+  if (!sockets) return;
+  const message = JSON.stringify(payload);
+  for (const ws of sockets) {
+    if (ws.readyState === 1) ws.send(message);
+  }
 };
 
 // ── Middleware ────────────────────────────────────────────────────────────────

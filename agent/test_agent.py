@@ -39,12 +39,15 @@ test_state = {
         - Lead backend architecture decisions
         - Optimize database performance
     """,
+    "template_kind":    "sde",
+    "target_score":     90,
     "parsed_resume":    {},
     "parsed_jd":        {},
     "ats_score":        0,
     "keyword_map":      {},
     "gaps":             [],
     "rewritten_resume": None,
+    "rendered_resume_text": None,
     "suggestions":      [],
     "iteration":        0,
     "final_score":      None,

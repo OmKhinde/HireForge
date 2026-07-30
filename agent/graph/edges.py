@@ -21,4 +21,8 @@ def route_after_verify(state: AgentState) -> str:
         return "done"
     if iteration >= MAX_ITERATIONS:
         return "done"       # hit iteration cap — ship what we have
+    # If we came through suggest_additions (gap too large to rewrite),
+    # don't contradict that decision by looping back to rewrite.
+    if state.get("suggestions"):
+        return "done"
     return "rewrite"        # loop back for another pass

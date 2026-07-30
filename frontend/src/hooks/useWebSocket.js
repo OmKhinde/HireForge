@@ -12,7 +12,8 @@ export function useWebSocket(jobId, onMessage) {
       return undefined;
     }
 
-    const socket = new WebSocket(`${WS_BASE_URL}?jobId=${jobId}`);
+    const token = localStorage.getItem('token');
+    const socket = new WebSocket(`${WS_BASE_URL}?jobId=${jobId}&token=${encodeURIComponent(token || '')}`);
 
     socket.onmessage = (event) => {
       try {

@@ -10,18 +10,26 @@ def compute_ats_score(parsed_resume: dict, parsed_jd: dict) -> tuple[int, dict, 
       format checks    → 20 pts
     """
     required = [s.lower().strip() for s in parsed_jd.get("required_skills", [])]
-    nice     = [s.lower().strip() for s in parsed_jd.get("nice_to_have",     [])]
+    nice_raw = [s.lower().strip() for s in parsed_jd.get("nice_to_have",     [])]
+    # Deduplicate: if a skill appears in both lists, only count it under required
+    required_set = set(required)
+    nice = [s for s in nice_raw if s not in required_set]
 
     # Build a single searchable string from the entire resume
     experience_text = " ".join(
         " ".join(exp.get("bullets", []))
         for exp in parsed_resume.get("experience", [])
     )
+    # Serialize education list-of-dicts into searchable text
+    education_text = " ".join(
+        f"{edu.get('degree', '')} {edu.get('institution', '')} {edu.get('year', '')}"
+        for edu in parsed_resume.get("education", [])
+    )
     resume_blob = " ".join([
         " ".join(parsed_resume.get("skills", [])),
         experience_text,
         parsed_resume.get("summary", ""),
-        parsed_resume.get("education_text", ""),
+        education_text,
     ]).lower()
 
     keyword_map: dict[str, str] = {}
@@ -29,14 +37,14 @@ def compute_ats_score(parsed_resume: dict, parsed_jd: dict) -> tuple[int, dict, 
     matched_nice     = 0
 
     for kw in required:
-        # match whole word or compound phrase
-        found = bool(re.search(r'\b' + re.escape(kw) + r'\b', resume_blob))
+        # Use lookarounds instead of \b so terms like C++, .NET, CI/CD match correctly
+        found = bool(re.search(r'(?<!\w)' + re.escape(kw) + r'(?!\w)', resume_blob))
         keyword_map[kw] = "present" if found else "missing"
         if found:
             matched_required += 1
 
     for kw in nice:
-        found = bool(re.search(r'\b' + re.escape(kw) + r'\b', resume_blob))
+        found = bool(re.search(r'(?<!\w)' + re.escape(kw) + r'(?!\w)', resume_blob))
         keyword_map[kw] = "present" if found else "missing"
         if found:
             matched_nice += 1

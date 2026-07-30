@@ -22,11 +22,21 @@ def _log(state: AgentState, msg: str) -> list:
 def _parse_json(text: str) -> dict | list:
     """Strip markdown fences and parse JSON robustly."""
     clean = re.sub(r"```(?:json)?|```", "", text).strip()
-    # sometimes the model adds a leading/trailing sentence — find the JSON block
-    match = re.search(r"(\{.*\}|\[.*\])", clean, re.DOTALL)
-    if match:
-        clean = match.group(1)
-    return json.loads(clean)
+    # Try the whole string first
+    try:
+        return json.loads(clean)
+    except json.JSONDecodeError:
+        pass
+    # Find the first valid JSON object or array via bracket-matching
+    decoder = json.JSONDecoder()
+    for i, char in enumerate(clean):
+        if char in ('{', '['):
+            try:
+                obj, _ = decoder.raw_decode(clean, i)
+                return obj
+            except json.JSONDecodeError:
+                continue
+    raise json.JSONDecodeError("No valid JSON found", clean, 0)
 
 # ── Node 1 ────────────────────────────────────────────────────────────────────
 
@@ -147,8 +157,11 @@ MISSING KEYWORDS TO INCORPORATE:
 
 TARGET ROLE: {state["parsed_jd"].get("role_title", "Not specified")}
 
-ORIGINAL RESUME SECTIONS:
+PARSED RESUME SECTIONS:
 {json.dumps(state["parsed_resume"], indent=2)}
+
+FULL ORIGINAL RESUME TEXT:
+{state["resume_text"][:5000]}
 
 OUTPUT: Write the full rewritten resume as clean plain text, ready to turn into a final resume PDF.
 Start directly with the resume content. No preamble, no explanation.
@@ -233,7 +246,7 @@ Return ONLY valid JSON, no markdown fences:
 {{"skills": ["skill1", "skill2", ...]}}
 
 RESUME:
-{state["rewritten_resume"][:3000]}
+{state["rewritten_resume"]}
 """
 
     response = llm.invoke([HumanMessage(content=prompt)])
@@ -250,7 +263,7 @@ RESUME:
         "summary": state["rewritten_resume"][:500],   # treat first 500 chars as new summary for scoring
     }
 
-    final_score, _, _ = compute_ats_score(updated_resume, state["parsed_jd"])
+    final_score, new_keyword_map, new_gaps = compute_ats_score(updated_resume, state["parsed_jd"])
 
     msg = (
         f"Final ATS score: {final_score}/100 "
@@ -259,5 +272,7 @@ RESUME:
     return {
         **state,
         "final_score": final_score,
+        "keyword_map": new_keyword_map,
+        "gaps":        new_gaps,
         "progress":    _log({"progress": progress}, msg),
     }

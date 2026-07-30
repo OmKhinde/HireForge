@@ -76,17 +76,29 @@ def extract_text_from_s3(s3_key: str) -> str:
     return "\n".join(page.get_text() for page in pdf)
 
 
-def set_status(job_id: str, status: str, extra: dict = {}):
+def set_status(job_id: str, status: str, extra: dict | None = None):
+    if extra is None:
+        extra = {}
     jobs.update_one({"_id": job_id}, {"$set": {"status": status, **extra}})
 
 
 def _parse_json(text: str):
     clean = text.replace("```json", "").replace("```", "").strip()
-    start = clean.find("{")
-    end = clean.rfind("}")
-    if start != -1 and end != -1 and end > start:
-        clean = clean[start:end + 1]
-    return json.loads(clean)
+    # Try the whole string first
+    try:
+        return json.loads(clean)
+    except json.JSONDecodeError:
+        pass
+    # Find the first valid JSON object via bracket-matching
+    decoder = json.JSONDecoder()
+    for i, char in enumerate(clean):
+        if char in ('{', '['):
+            try:
+                obj, _ = decoder.raw_decode(clean, i)
+                return obj
+            except json.JSONDecodeError:
+                continue
+    raise json.JSONDecodeError("No valid JSON found", clean, 0)
 
 
 def _latex_escape(value: str) -> str:
@@ -103,6 +115,11 @@ def _latex_escape(value: str) -> str:
         "^": r"\textasciicircum{}",
     }
     return "".join(replacements.get(char, char) for char in (value or ""))
+
+
+def _latex_escape_url(url: str) -> str:
+    """Escape only the chars that break LaTeX inside \\href{...} URL context."""
+    return (url or "").replace("%", "\\%").replace("#", "\\#")
 
 
 def _compact(items, limit):
@@ -258,7 +275,7 @@ def build_resume_latex(document: dict) -> str:
             if bullet
         )
         project_chunks.append(rf"""\projectHeading
-  {{{project.get("url", "")}}}
+  {{{_latex_escape_url(project.get("url", ""))}}}
   {{{_latex_escape(project.get("title", ""))}}}
   {{{_latex_escape(project.get("date", ""))}}}
 \projectStack{{{_latex_escape(project.get("stack", ""))}}}
