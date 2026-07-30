@@ -16,6 +16,8 @@ Thumbs.db
 !.env.example
 !**/.env.example
 !**/frontend.env.example
+**/deploy.env
+infra/ecs/deploy.env
 
 # Node / frontend artifacts
 **/node_modules/
